@@ -1,0 +1,161 @@
+---
+title: "Flow diagram"
+author: "Anshu Uppal"
+date: "`r lubridate::today()`"
+output: 
+  html_document:
+    code_folding: hide
+knit: (function(input, ...) {
+    rmarkdown::render(
+      input, 
+      output_dir = here::here("output")
+    )
+  })
+---
+
+```{r setup, results = "hide", message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(message = FALSE)  # Set default to not display code from chunks and not to display warnings
+options(width = 300)
+# Load packages and dataset ####
+pacman::p_load(    # Installs / loads packages if they are not already installed / loaded
+  rio,          # File import
+  here,         # File locator
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics 
+  gtsummary,    # summary statistics and tests
+  rstatix,      # summary statistics and statistical tests
+  janitor,      # adding totals and percents to tables
+  scales,       # easily convert proportions to percents  
+  flextable,    # converting tables to pretty images
+  lubridate     # manipulate date objects
+)
+
+# Input flow diagram data from file previously generated using "Flow diagram.R"
+dat <- tibble(readRDS(here("data", "flow diagram.rds")))
+# # Alternative is source it directly:
+# source(here::here("code", "Flow diagram.R"))
+```
+
+Remove suppressed (i.e. opted out)
+```{r}
+dat %>% count(send_status)
+dat <- dat %>% filter(!send_status %in% c("Suppressed"))
+
+```
+
+Keep only those who did participate in the sero-cov-work or SP1,2,3,4 surveys --> This is our initial N for the flow diagram
+```{r}
+dat %>% count(serocov_work.x | serocov_pop.x | sp3_juin_2021.x | sp2_novdec_2020.x | sp4_avril_2022.x |pop_pilote.x | work_pilote.x)
+dat <- dat %>% filter(serocov_work.x | serocov_pop.x | sp3_juin_2021.x | sp2_novdec_2020.x | sp4_avril_2022.x |pop_pilote.x | work_pilote.x)
+
+paste0("N = ", length(dat$participant_id))
+```
+
+
+Exlude those outside our age range for inclusion and were not in salaried employment at baseline
+```{r}
+dat %>% summarize(under_18 = sum(age_inclusion < 18),
+                  over_66 = sum(age_inclusion >= 67)
+                  )
+dat %>% summarize(not_salaried = sum(work_situation.x != "Salarié-e", na.rm = TRUE))
+
+dat %>% mutate(over_66 = age_inclusion >= 67,
+               not_salaried = work_situation.x != "Salarié-e"
+               ) %>% 
+  count(over_66, not_salaried)
+
+dat <- dat %>% filter(age_inclusion < 67 & work_situation.x == "Salarié-e")
+paste0("N = ", length(dat$participant_id))
+
+```
+
+Remove those with invalid email --> but one person seems to have somehow done the questionnaire even after their email was declared invalid
+```{r}
+dat %>% count(send_status)
+dat %>% group_by(Invited) %>% count(Responded)
+dat <- dat %>% filter(!send_status %in% c("Bounced", "Failed"))
+dat %>% group_by(Invited) %>% count(Responded)
+paste0("N = ", length(dat$participant_id))
+
+```
+
+Remove those with no account (!!!!!need to double-check that this applies to all this filter group!!!!!!)
+```{r}
+dat %>% count(send_status)
+dat <- dat %>% filter(!is.na(send_status))
+paste0("N = ", length(dat$participant_id))
+
+```
+
+Overview of who was invited
+```{r}
+dat %>%
+  ggplot(aes(x = date_soumission.x, fill = pop_source))+
+  geom_histogram()+
+  labs(title = "Inclusion questionnaire submission date", x = "Inclusion questionnaire submission date") +
+  theme_bw()
+
+dat %>%
+  ggplot(aes(x = age_inclusion))+
+  geom_histogram()+
+  labs(title = "Salarié-e: Age and invitation status for Santé-travail questionnaire",
+       x = "Age at inclusion")+
+  facet_wrap(.~pop_source)+
+  theme_bw()
+```
+
+I asked Julien for some more information about why some of the salariée did not get the invite for the Santé-travail questionnaire (even though they submitted the Specchio inclusion questionnaire), and these are the main points of exclusion:  
+  
+* People without an email were not contacted
+* People with an email but who did not create a Specchio account were not invited
+* People who opted out of future questionnaires or opted out of the study were not contacted
+* Age: 18 minimum, 66 maximum (!! taken from the time of the inclusion questionnaire)
+* Some participants were recruited as part of the Schools and Kids studies, and these are a different context so they are not considered for Santé-Travail  
+
+Filter for only those who responded
+```{r}
+dat %>% 
+  count(Responded) %>% 
+  mutate(percent = n / sum(n))
+dat <- dat %>% filter(Responded == "Respondents")
+paste0("N = ", length(dat$participant_id))
+
+```
+
+Filter only for those employed within previous 12 months
+```{r}
+dat %>% 
+  count(employed) %>% 
+  mutate(percent = round(100 * n / sum(n),1))
+dat <- dat %>% filter(employed == "Oui")
+```
+
+Filter only for those currently in a salaried position
+```{r}
+dat %>% 
+  count(work_situation.y) %>% 
+  mutate(percent = round(100 * n / sum(n),1))
+dat <- dat %>% filter(work_situation.y == "En activité salariée")
+paste0("N = ", length(dat$participant_id))
+
+```
+
+Number of salariée employed before the pandemic
+```{r}
+dat %>% 
+  count(wfh_change) %>% 
+  mutate(percent = round(100 * n / sum(n),1))
+dat <- dat %>% filter(!wfh_change %in% "Non concerné-e (vous n’aviez pas d’emploi avant la pandémie ou vous avez changé d’emploi)") 
+paste0("N = ", length(dat$participant_id))
+
+```
+
+
+
+Filter out ages under 25 and >= 65 at time of responding to santé-travail questionnaire
+```{r}
+dat %>% count(age_cat)
+dat <- dat %>% filter(!age_cat %in% c("18-24", "65+"))
+paste0("N = ", length(dat$participant_id))
+
+```

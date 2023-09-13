@@ -1,0 +1,972 @@
+---
+title: "Regressions of WFH and Burnout"
+author: "Anshu Uppal"
+date: "01/03/2023"
+output: 
+  html_document:
+    code_folding: hide
+knit: (function(input, ...) {
+    rmarkdown::render(
+      input, 
+      output_dir = here::here("output")
+    )
+  })
+---
+
+```{r setup, results = "hide", message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(message = FALSE)  # Set default to not display code from chunks and not to display warnings
+options(width = 300)
+# Load packages and dataset ####
+pacman::p_load(    # Installs / loads packages if they are not already installed / loaded
+  rio,          # File import
+  here,         # File locator
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics 
+  gtsummary,    # summary statistics and tests
+  rstatix,      # summary statistics and statistical tests
+  janitor,      # adding totals and percents to tables
+  scales,       # easily convert proportions to percents  
+  flextable,    # converting tables to pretty images
+  lubridate,     # manipulate date objects
+  ggfortify,    # plotting tools to check GLM assumptions
+  apyramid      # a package dedicated to creating age pyramids
+)
+
+# Read in clean dataset (see "Merge code.R" and "Cleaning merged dataset")
+dat <- tibble(readRDS(here("data", "clean_dataset.rds"))) #%>% 
+  # filter(!is.na(sex_en))
+dat_all <- tibble(readRDS(here("data", "clean_dataset_incl_salariee.rds"))) #%>% 
+  # filter(!is.na(sex_en))
+```
+
+{.tabset}
+## Exploration {.tabset}
+
+### Job satisfaction
+```{r}
+dat %>% 
+  ggplot(aes(x = karasek_scale_1_work_satisfaction))+
+  geom_bar()+
+  geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.2)+
+  labs(x = "Job satisfaction", title = "Job satisfaction")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+```
+
+```{r}
+dat %>% 
+  ggplot(aes(x = karasek_scale_1_work_satisfaction))+
+  geom_bar()+
+  geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.2)+
+  labs(x = "Job satisfaction", title = "Job satisfaction by wfh exposure")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))+
+  facet_wrap(.~ wfh_exposure)
+
+```
+
+```{r}
+dat %>%
+  group_by(karasek_scale_1_work_satisfaction) %>% 
+  summarise(MBI = round(mean(burnout_score, na.rm = TRUE),1)) %>% 
+  ggplot(aes(x = karasek_scale_1_work_satisfaction, y = MBI))+
+  geom_col()+
+  geom_text(aes(label = MBI), vjust = -0.2)+
+  labs(x = "karasek_scale_1_work_satisfaction", title = "Burnout score ~ job satisfaction")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+```
+
+### WFH exposure {.tabset}
+
+#### Exposure overview
+Some people only started working after the pandemic, and so answered "Not applicable" for the question about changing WFH patterns. These have been filtered out in the "01_prep_b_Clean merged dataset.R" file
+```{r}
+dat %>% 
+  ggplot(aes(x = wfh_exposure))+
+  geom_bar()+
+  geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.2)+
+  labs(x = "Combined WFH exposure variable", title = "Number of people in each category")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+
+dat %>% 
+  filter(!is.na(sex_en)) %>% 
+  ggplot(aes(x = wfh_exposure))+
+  geom_bar()+
+  geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.2)+
+  labs(x = "Combined WFH exposure variable", title = "Number of people in each category")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))+
+  facet_wrap(.~sex_en)
+```
+
+
+```{r}
+dat %>%
+  filter(!is.na(sex_en)) %>% 
+  group_by(wfh_exposure, sex_en) %>% 
+  summarise(MBI = round(mean(burnout_score, na.rm = TRUE),1)) %>% 
+  ggplot(aes(x = sex_en, y = MBI))+
+  geom_col()+
+  geom_text(aes(label = MBI), vjust = -0.2)+
+  labs(x = "Sex", title = "Burnout score ~ WFH Exposure")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))+
+  facet_wrap(.~wfh_exposure)
+```
+
+#### WFH balance (Q16.2)
+This question is only asked to people who were teleworking in their job at the time of the questionnaire.  
+I dichotomised the responses --> c("Oui", "Plutôt oui") ~ "Yes",
+                                  c("Non", "Plutôt non", "Ne sais pas") ~ "No"
+```{r}
+dat %>%
+  # filter(!is.na(wfh_balance)) %>% 
+  group_by(wfh_exposure, wfh_balance_dich) %>% 
+  summarise(MBI = round(mean(burnout_score, na.rm = TRUE),1)) %>% 
+  ggplot(aes(x = wfh_exposure, y = MBI, fill = wfh_balance_dich, group = wfh_balance_dich))+
+  geom_col(position = "dodge")+
+  geom_text(aes(label = MBI), position = position_dodge(width = 1), vjust = -0.2)+
+  labs(x = "Combined WFH exposure variable", title = "Burnout score ~ WFH Exposure and whether it improved their work-life balance",
+       fill = "WFH allows for better\nwork-life balance?")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+
+dat %>% 
+  ggplot(aes(x = wfh_balance_combined))+
+  geom_bar()+
+  geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.2)+
+  labs(x = "WFH status + work-life balance", title = "WFH status and whether or not it permits better work-life balance")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+
+dat %>%
+  group_by(wfh_balance_combined) %>% 
+  summarise(MBI = round(mean(burnout_score, na.rm = TRUE),1)) %>% 
+  ggplot(aes(x = wfh_balance_combined, y = MBI))+
+  geom_col()+
+  geom_text(aes(label = MBI), vjust = -0.2)+
+  labs(x = "WFH status + work-life balance", title = "Burnout score ~ WFH status + work-life balance")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+```
+
+#### Other
+People who work from home seem to be more likely to work overtime
+```{r}
+dat %>%
+  group_by(wfh_trich) %>% 
+  count(work_overtime_dich) %>%
+  mutate(percent = 100 * n / sum(n)) %>% 
+  ggplot(aes(x=work_overtime_dich, y = percent))+
+  geom_col()+
+  facet_wrap(.~ wfh_trich)
+
+dat %>%
+  group_by(wfh_trich) %>% 
+  count(work_sick_dich) %>%
+  mutate(percent = 100 * n / sum(n)) %>% 
+  ggplot(aes(x=work_sick_dich, y = percent))+
+  geom_col()+
+  facet_wrap(.~ wfh_trich)
+```
+
+
+```{r}
+dat %>% 
+  ggplot(aes(x= points_burn_out_scale_1_much_effort))+
+  geom_histogram()+
+  facet_wrap(.~ wfh_exposure)
+
+dat %>% 
+  ggplot(aes(x= wfh_updated , y = points_burn_out_scale_1_much_effort))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, points_burn_out_scale_1_much_effort ~ wfh_updated, family = gaussian)
+autoplot(m1)
+```
+
+
+
+### WFH frequency
+```{r}
+dat %>% 
+  filter(!is.na(wfh_balance)) %>% 
+  ggplot(aes(x = wfh_updated, fill = wfh_balance))+
+  geom_bar(position = "dodge")+
+  geom_text(aes(label = after_stat(count)), position = position_dodge(width = 1), stat = "count", vjust = -0.2)+
+  labs(x = "WFH frequency", title = "Number of people in each category")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+
+dat %>%
+  filter(!is.na(wfh_balance)) %>% 
+  group_by(wfh_updated, wfh_balance) %>% 
+  summarise(MBI = round(mean(burnout_score, na.rm = TRUE),1)) %>% 
+  ggplot(aes(x = wfh_updated, y = MBI, fill = wfh_balance, group = wfh_balance))+
+  geom_col(position = "dodge")+
+  geom_text(aes(label = MBI), position = position_dodge(width = 1), vjust = -0.2)+
+  labs(x = "WFH frequency", title = "Burnout score ~ WFH frequency and whether it improved their work-life balance")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle = 10, hjust = 1, size = 13))
+```
+
+### EE-MBI continuous {.tabset}
+#### Outcome variable exploration
+##### No transformation
+Outcome is right-skewed --> probably due to "floor effect" of the different questions used to calculate the composite EE-MBI score (many people responding 0, i.e. "Never", to some or many of the questions).  
+  
+I tried a few different transformations of the EE-MBI score, to get a normal distribution for our outcome, and so far the sqrt(burnout_score + 1) transformation seems to work best.  
+
+```{r, }
+# No transformation
+dat %>% 
+  ggplot(aes(x = (burnout_score)))+
+  geom_histogram(binwidth = 1)+
+  labs(title = "Histogram of MBI score")
+# Q-Q plot
+dat %>% 
+  ggplot(aes(sample = burnout_score))+
+  stat_qq() + stat_qq_line()
+```
+
+##### Log transformation
+Still quite skewed
+```{r, }
+dat %>% 
+  ggplot(aes(x = log(burnout_score + 1)))+
+  geom_histogram(binwidth = 0.1)+
+  labs(title = "Histogram of log(MBI score + 1)")
+dat %>% 
+  ggplot(aes(sample = log(burnout_score + 1)))+
+  stat_qq() + stat_qq_line()
+```
+
+##### Square-root transformation
+Gives a somewhat normal distribution, but still not ideal
+```{r, }
+dat %>% 
+  ggplot(aes(x = sqrt(burnout_score)))+
+  geom_histogram(binwidth = 0.5)+
+  labs(title = "Histogram of sqrt(MBI score)")
+dat %>% 
+  ggplot(aes(sample = sqrt(burnout_score)))+
+  stat_qq() + stat_qq_line()
+```
+
+##### Square-root transformation plus 1
+Gives a somewhat normal distribution, seems to be the best looking distribution of the lot
+```{r, }
+dat %>% 
+  ggplot(aes(x = sqrt(burnout_score+1)))+
+  geom_histogram(binwidth = 0.5)+
+  labs(title = "Histogram of sqrt(MBI score + 1)")
+dat %>% 
+  ggplot(aes(sample = sqrt(burnout_score+1)))+
+  stat_qq() + stat_qq_line()
+```
+
+##### Reciprocal transformation
+Pretty bad
+```{r, }
+dat %>% 
+  ggplot(aes(x = 1/(burnout_score+1)))+
+  geom_histogram(binwidth = 0.01)+
+  labs(title = "Histogram of 1/(MBI score + 1)")
+dat %>% 
+  ggplot(aes(sample = 1/(burnout_score+1)))+
+  stat_qq() + stat_qq_line()
+```
+
+##### Quadratic transformation
+Pretty bad
+```{r, }
+dat %>% 
+  ggplot(aes(x = (burnout_score + burnout_score^2)))+
+  geom_histogram()+
+  labs(title = "Histogram of (burnout_score + burnout_score^2)")
+dat %>% 
+  ggplot(aes(sample = (burnout_score + burnout_score^2)))+
+  stat_qq() + stat_qq_line()
+```
+
+#### Continuous predictors
+I kept the square root of (burnout_score + 1) as my normalized burnout score for the outcome
+
+##### Age
+There doesn't seem to be a linear relationship with age - probably better to use it as a categorical variable in the model
+```{r}
+dat %>%
+  ggplot(aes(x = age))+
+  geom_histogram()+
+  labs(title = "Histogram of age")
+```
+
+Does the predictor need to be normally distributed?
+```{r}
+dat %>%
+  ggplot(aes(x = age, y = burnout_score))+
+  geom_point()+
+  geom_smooth()
+```
+
+
+```{r}
+m1 <- glm(data = dat, burnout_score ~ age, family = gaussian)
+autoplot(m1)
+```
+
+##### BMI
+Filtering out BMI < 75 for now using bmi_new variable (where BMI > 75 set to NA), but need to doublecheck strategy on this (set them to NA for weight/height/bmi/bmicat?)
+
+Does the predictor need to be normally distributed as well? Maybe it's fine as long as burnout score is normally distributed along each level of BMI?
+```{r}
+dat %>%
+  ggplot(aes(x = bmi_new))+
+  geom_histogram()+
+  labs(title = "Histogram of BMI")
+
+dat %>%
+  ggplot(aes(x = bmi_new, y = burnout_score))+
+  geom_point()+
+  geom_smooth()
+
+m1 <- glm(data = dat, burnout_score ~ bmi_new, family = gaussian)
+autoplot(m1)
+```
+
+##### Hours worked per week
+```{r}
+dat %>%
+  ggplot(aes(x = hours_week))+
+  geom_histogram()+
+  labs(title = "Histogram of hours worked per week")
+
+dat %>%
+  ggplot(aes(x = hours_week, y = burnout_score))+
+  geom_point()+
+  geom_smooth()
+
+m1 <- glm(data = dat, burnout_score ~ hours_week, family = gaussian)
+autoplot(m1)
+```
+
+##### Seated time standardized to hours worked per week
+This is the reported amount of time seated per week divided by the reported number of hours worked per week.
+
+I filtered out points where standardized seated time is larger than 1 (i.e. where time seated is more than the reported number of hours worked per week). Probably need to set those to NA later.
+
+Need to transform to get a normal distribution: log(seated_time_standardized+0.01)
+```{r}
+dat %>%
+  filter(seated_time_standardized <= 1) %>% 
+  ggplot(aes(x = seated_time_standardized))+
+  geom_histogram()+
+  labs(title = "Histogram of standardized seated time per week")
+
+dat %>%
+  filter(seated_time_standardized <= 1) %>% 
+  ggplot(aes(x = log(seated_time_standardized+0.01)))+
+  geom_histogram()+
+  labs(title = "Histogram of log(standardized seated time per week + 0.01)")
+
+
+dat %>%
+  filter(seated_time_standardized <= 1) %>% 
+  ggplot(aes(x = seated_time_standardized, y = burnout_score))+
+  geom_point()+
+  geom_smooth()
+
+m1 <- glm(data = dat, burnout_score ~ seated_time_standardized, family = gaussian)
+autoplot(m1)
+```
+
+##### Number of children
+```{r}
+dat %>%
+  ggplot(aes(x = factor(children_n), y = burnout_score))+
+  geom_boxplot()
+
+dat %>%
+  group_by(children_n) %>%
+  summarise(MBI_avg = mean(burnout_score, na.rm = TRUE)) %>%
+  ggplot(aes(x = children_n, y = MBI_avg))+
+  geom_col()
+
+m1 <- glm(data = dat, burnout_score ~ children_n, family = gaussian)
+autoplot(m1)
+```
+
+##### Karasek scale (composite of questions from Q23)
+Big peak at 24 is because in the response scale of 1-4 ()
+```{r}
+dat %>%
+  ggplot(aes(x = karasek_social_support))+
+  geom_histogram(binwidth = 1)+
+  labs(title = "Histogram of Karasek scale scores")
+
+dat %>%
+  ggplot(aes(x = karasek_social_support, y = burnout_score))+
+  geom_point()+
+  geom_smooth()
+
+m1 <- glm(data = dat, burnout_score ~ karasek_social_support, family = gaussian)
+autoplot(m1)
+```
+
+##### Work overinvestment
+```{r}
+dat %>%
+  ggplot(aes(x = score_work_overinvestment_scale))+
+  geom_histogram(binwidth = 1)+
+  labs(title = "Histogram of work overinvestment scale scores")
+
+dat %>%
+  ggplot(aes(x = score_work_overinvestment_scale, y = burnout_score))+
+  geom_point()+
+  geom_smooth()
+
+m1 <- glm(data = dat, burnout_score ~ score_work_overinvestment_scale, family = gaussian)
+autoplot(m1)
+```
+
+
+#### Categorical predictors
+
+##### WFH exposure
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ wfh_exposure)
+
+m1 <- glm(data = dat, burnout_score ~ wfh_exposure, family = gaussian)
+autoplot(m1)
+```
+
+##### Age categories
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ age_cat)
+
+dat %>% 
+  ggplot(aes(x=age_cat, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ age_cat, family = gaussian)
+autoplot(m1)
+```
+
+##### Sex
+```{r}
+dat %>% 
+  filter(!is.na(sex_en)) %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~sex_en)
+
+dat %>% 
+  filter(!is.na(sex_en)) %>% 
+  ggplot(aes(x=sex_en, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ sex_en, family = gaussian)
+autoplot(m1)
+```
+
+##### BMI categories
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ bmi_4_cat_en_new)
+
+dat %>% 
+  ggplot(aes(x=bmi_4_cat_en_new, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ bmi_4_cat_en_new, family = gaussian)
+autoplot(m1)
+```
+
+##### Living circumstances
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ hh_livewith_rec_en)
+
+dat %>% 
+  ggplot(aes(x=hh_livewith_rec_en, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ hh_livewith_rec_en, family = gaussian)
+autoplot(m1)
+```
+
+##### Income
+Can be treated as ordinal categorical value --> figure out how to do this!
+```{r}
+dat %>%
+  filter(!is.na(hh_income_cat_en)) %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ hh_income_cat_en)
+
+dat %>% 
+  filter(!is.na(hh_income_cat_en)) %>% 
+  ggplot(aes(x= hh_income_cat_en, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ hh_income_cat_en, family = gaussian)
+autoplot(m1)
+```
+
+###### (Quick look at living circumstances ~ Income)
+I'm guessing those in lower income brackets are more likely to be in colocation
+```{r}
+dat %>% 
+  filter(!is.na(hh_income_cat_en)) %>% 
+  group_by(hh_income_cat_en) %>% 
+  count(hh_livewith_rec_en) %>%
+  mutate(percent = round(100 * n / sum(n),1))
+```
+
+##### Urbanicity
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ zone_house)
+
+dat %>% 
+  ggplot(aes(x=zone_house, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ zone_house, family = gaussian)
+autoplot(m1)
+```
+
+##### Noisy
+Also could be considered ordinal
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ noisy)
+
+dat %>% 
+  ggplot(aes(x=noisy, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ noisy, family = gaussian)
+autoplot(m1)
+```
+
+##### Quiet room
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ quiet_room)
+
+dat %>% 
+  ggplot(aes(x=quiet_room, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ quiet_room, family = gaussian)
+autoplot(m1)
+```
+
+##### feeling_exhausted (Q24)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ feeling_exhausted)
+
+dat %>% 
+  ggplot(aes(x= feeling_exhausted, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ feeling_exhausted, family = gaussian)
+autoplot(m1)
+```
+
+##### feeling_exhausted - dichotomised (Q24)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ feeling_exhausted_dich)
+
+dat %>% 
+  ggplot(aes(x= feeling_exhausted_dich, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ feeling_exhausted_dich, family = gaussian)
+autoplot(m1)
+```
+
+##### health_general_dich
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ health_general_dich)
+
+dat %>% 
+  ggplot(aes(x=health_general_dich, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ health_general_dich, family = gaussian)
+autoplot(m1)
+```
+
+##### mental_state_dich
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ mental_state_dich)
+
+dat %>% 
+  ggplot(aes(x=mental_state_dich, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ mental_state_dich, family = gaussian)
+autoplot(m1)
+```
+
+##### chronic_disease
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ chronic_disease)
+
+dat %>% 
+  ggplot(aes(x=chronic_disease, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ chronic_disease, family = gaussian)
+autoplot(m1)
+```
+
+##### Work satisfaction (Karasek Q22)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ karasek_scale_1_work_satisfaction)
+
+dat %>% 
+  ggplot(aes(x= karasek_scale_1_work_satisfaction, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ karasek_scale_1_work_satisfaction, family = gaussian)
+autoplot(m1)
+```
+
+##### Work overload (Karasek Q22)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ karasek_scale_1_too_much_work)
+
+dat %>% 
+  ggplot(aes(x= karasek_scale_1_too_much_work, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ karasek_scale_1_too_much_work, family = gaussian)
+autoplot(m1)
+```
+
+##### Work organization (Karasek Q22)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ karasek_scale_1_work_organisation)
+
+dat %>% 
+  ggplot(aes(x= karasek_scale_1_work_organisation, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ karasek_scale_1_work_organisation, family = gaussian)
+autoplot(m1)
+```
+
+##### Work-life balance (unable to maintain) (Karasek Q22)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ karasek_scale_1_work_life_balance)
+
+dat %>% 
+  ggplot(aes(x= karasek_scale_1_work_life_balance, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ karasek_scale_1_work_life_balance, family = gaussian)
+autoplot(m1)
+```
+
+##### Work-life balance (Q31)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ work_life_balance)
+
+dat %>% 
+  ggplot(aes(x= work_life_balance, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ work_life_balance, family = gaussian)
+autoplot(m1)
+```
+
+##### Positive impact (Q30)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ positive_impact)
+
+dat %>% 
+  ggplot(aes(x= positive_impact, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ positive_impact, family = gaussian)
+autoplot(m1)
+```
+
+
+##### Work Overtime (Q32)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ work_overtime)
+
+dat %>% 
+  ggplot(aes(x= work_overtime, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ work_overtime, family = gaussian)
+autoplot(m1)
+```
+
+##### Work weekends (Q33)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ work_weekends)
+
+dat %>% 
+  ggplot(aes(x= work_weekends, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ work_weekends, family = gaussian)
+autoplot(m1)
+```
+
+##### Work while sick (Q34)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ work_sick)
+
+dat %>% 
+  ggplot(aes(x= work_sick, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ work_sick, family = gaussian)
+autoplot(m1)
+```
+
+##### Fear of losing job (Q36)
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ fear_losing_job)
+
+dat %>% 
+  ggplot(aes(x= fear_losing_job, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ fear_losing_job, family = gaussian)
+autoplot(m1)
+```
+
+##### Fear of losing job - change since pandemic (Q37)
+**We only asked people who replied yes to the previous questions**
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ fear_losing_job_change)
+
+dat %>% 
+  ggplot(aes(x= fear_losing_job_change, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ fear_losing_job_change, family = gaussian)
+autoplot(m1)
+```
+
+##### Aggression at work (DGS Q)
+**We only asked people who replied yes to the previous questions**
+```{r}
+dat %>% 
+  ggplot(aes(x=burnout_score))+
+  geom_histogram()+
+  facet_wrap(.~ dgs_binary_victim_aggression)
+
+dat %>% 
+  ggplot(aes(x= dgs_binary_victim_aggression, y = burnout_score))+
+  geom_boxplot()
+  
+m1 <- glm(data = dat, burnout_score ~ dgs_binary_victim_aggression, family = gaussian)
+autoplot(m1)
+```
+
+
+### EE-MBI binary
+```{r}
+severe <- c(27,30,33,36, 39)
+for (i in 1:length(severe)) {
+  fig <- dat %>% 
+    mutate(Severe_MBI = case_when(
+      burnout_score >= severe[i] ~ 1,
+      burnout_score < severe[i] ~ 0,
+      .default = burnout_score)) %>% 
+    group_by(wfh_exposure) %>%
+    summarise(Severe_MBI = mean(Severe_MBI, na.rm = TRUE)) %>% 
+    ggplot(aes(x=wfh_exposure, y = Severe_MBI*100))+
+    geom_col()+
+    theme_classic()+
+    geom_text(aes(label = scales::percent(Severe_MBI)), vjust = -0.2)+
+    labs(x = "Combined WFH exposure variable", 
+         y = paste0("% incidence of severe EE"), 
+         title = paste0("% incidence of severe EE (MBI >= ",severe[i],")") )
+  print(fig)
+}
+```
+
+### Clinical burnout
+Placeholder
+
+## Univariable Regression {.tabset}
+### Combined
+```{r, warning=FALSE}
+# Define exposure and covariates
+covariates <- c("wfh_exposure",                              # Main exposure
+                "age", "age_cat",  "sex_en", "bmi_new", "bmi_4_cat_en_new",
+                "education_rec_en", "hh_income_cat_en", "zone_house", 
+                "hh_livewith_rec_en", "children_n",
+                "hours_week", "seated_time_standardized",
+                "noisy", "quiet_room",
+                "score_work_overinvestment_scale", "karasek_social_support",
+                "feeling_exhausted", "feeling_exhausted_dich",
+                "health_general_dich", "mental_state_dich", "chronic_disease",
+                "karasek_scale_1_too_much_work", "karasek_scale_1_work_organisation" , "karasek_scale_1_work_satisfaction",
+                "karasek_scale_1_work_life_balance", "work_life_balance",
+                "positive_impact",  "work_overtime", "work_weekends", "work_sick", "fear_losing_job"
+                )
+### Linear regression
+uv_lin <- dat %>%
+  select(burnout_score, all_of(covariates)) %>%
+  tbl_uvregression(
+    method = glm,
+    y = burnout_score,
+    method.args = list(family = gaussian),
+    exponentiate = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 2)
+  ) %>%
+  # add_global_p() %>% # add global p-value
+  # add_nevent() %>% # add number of events of the outcome
+  # add_q() %>% # adjusts global p-values for multiple testing
+  bold_p() %>% # bold p-values under a given threshold (default 0.05)
+  # bold_p(t = 0.10, q = TRUE) %>% # now bold q-values under the threshold of 0.10
+  add_n(location = "level") %>% 
+  bold_labels() #%>% 
+  # as_gt() %>%
+  # gt::tab_header(title = "Univariate linear regression",
+  #                subtitle = "EE-MBI score (continuous)")
+
+
+#######################
+### Logistic regression
+#######################
+
+#### Dichotomised EE-MBI score
+severe <- 27 # cutoff for whether MBI score is classified as severe or not
+a <- dat %>% mutate(
+  Severe_MBI = case_when(
+    burnout_score >= severe ~ 1,
+    burnout_score < severe ~ 0,
+    .default = burnout_score))
+
+uv_mbi_log <- a %>%
+  select(Severe_MBI, all_of(covariates)) %>%
+  tbl_uvregression(
+    method = glm,
+    y = Severe_MBI,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    hide_n = TRUE
+  ) %>%
+  # add_global_p() %>% # add global p-value
+  add_nevent(location = "level") %>% # add number of events of the outcome
+  # add_q() %>% # adjusts global p-values for multiple testing
+  bold_p() %>% # bold p-values under a given threshold (default 0.05)
+  # bold_p(t = 0.10, q = TRUE) %>% # now bold q-values under the threshold of 0.10
+  # add_n(location = "level") #%>% 
+  bold_labels() #%>% 
+  # as_gt() %>%
+  # gt::tab_header(title = "Univariate logistic regression",
+  #                subtitle = paste0("Severe = 1 when EE-MBI >= ",severe))
+
+#### Clinical burnout
+##### not sure why this gives a warning, set warning = FALSE in the code chunk
+uv_clinb_log <- dat %>%
+  select(burn_out,  all_of(covariates)) %>%
+  tbl_uvregression(
+    method = glm,
+    y = burn_out,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    hide_n = TRUE
+  ) %>%
+  # add_global_p() %>% # add global p-value
+  add_nevent(location = "level") %>% # add number of events of the outcome
+  # add_q() %>% # adjusts global p-values for multiple testing
+  bold_p() %>% # bold p-values under a given threshold (default 0.05)
+  # bold_p(t = 0.10, q = TRUE) %>% # now bold q-values under the threshold of 0.10
+  # add_n(location = "level") %>% 
+  bold_labels() #%>% 
+  # as_gt() %>%
+  # gt::tab_header(title = "Univariate logistic regression",
+  #                subtitle = paste0("Clinically diagnosed burnout = 1"))
+```
+
+Table combining univariable regressions for continuous EE-MBI score (square root transformed), dichotomised EE-MBI score (score >= `r severe` = 1), and clinically diagnosed burnout in the last 12 months.  
+  
+Need to look up how to back-transform the data after the regression so that results are easier to interpret.
+```{r}
+tbl_merge(
+  tbls = list(uv_lin, uv_mbi_log, uv_clinb_log),
+  tab_spanner = c("**Linear regression EE-MBI)**", paste0("**Logistic regression EE-MBI \u2265 ", severe, "**"), "**Logistic regression diagnosed burnout**")
+)
+```

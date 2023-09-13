@@ -1,0 +1,315 @@
+---
+title: "Publication figures"
+author: "Anshu Uppal"
+date: "`r lubridate::today()`"
+output: 
+  html_document:
+    code_folding: hide
+knit: (function(input, ...) {
+    rmarkdown::render(
+      input, 
+      output_dir = here::here("output")
+    )
+  })
+---
+
+```{r setup, results = "hide", message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(message = FALSE)  # Set default to not display code from chunks and not to display warnings
+# options(width = 300)
+# Load packages and dataset ####
+pacman::p_load(
+  tidyverse,
+  forestplot,
+  here,
+  devEMF,
+  gtsummary    # summary statistics and tests
+)
+
+# Read in clean dataset (see "Merge code.R" and "Cleaning merged dataset")
+dat <- tibble(readRDS(here("data", "clean_dataset.rds")))
+```
+
+# Logistic Regression
+```{r}
+# define main exposure and other explanatory variables of interest - can be used for linear and logistic regressions
+mcovariates <- c("wfh_exposure",
+                 "age_cat","sex_en","education_rec_en",
+                 "hh_income_cat_en", "finance_situation", "percent_change_cat", "supervision_short", # which variable to use for financial security? or too linked with income?
+                 "hh_livewith_rec_en", "overcrowded", # "zone_house" to be added as well?
+                 "noisy", "quiet_room", 
+                 # "teleworkability",
+                 # "work_interruption",
+                 "health_general_dich"
+)
+```
+
+## EE-MBI
+Generate univariate and multivariable regression tables
+```{r}
+# Create multivariate regression model
+#### Dichotomised EE-MBI score
+severe <- 30 # cutoff for whether MBI score is classified as severe or not
+a <- dat %>% mutate(
+  Severe_MBI = case_when(
+    burnout_score >= severe ~ 1,
+    burnout_score < severe ~ 0,
+    .default = burnout_score))
+
+uv_eembi_log <- a %>%
+  select(Severe_MBI, all_of(mcovariates)) %>%
+  tbl_uvregression(
+    method = glm,
+    y = Severe_MBI,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    hide_n = FALSE
+  ) %>%
+  # add_global_p() %>% # add global p-value
+  add_nevent(location = "level") %>% # add number of events of the outcome
+  # add_q() %>% # adjusts global p-values for multiple testing
+  bold_p() %>% # bold p-values under a given threshold (default 0.05)
+  # bold_p(t = 0.10, q = TRUE) %>% # now bold q-values under the threshold of 0.10
+  add_n(location = "level") %>%
+  bold_labels() #%>% 
+# as_gt() %>%
+# gt::tab_header(title = "Univariate logistic regression",
+#                subtitle = paste0("Severe = 1 when EE-MBI >= ",severe))
+
+
+# Automatic inclusion of pre-defined explanatory variables
+outcome <- "Severe_MBI"           # Define outcome
+# Create model
+m2 <- mcovariates %>%                      ## begin with vector of explanatory column names
+  str_c(collapse = "+") %>%                 ## combine all names of the variables of interest separated by a plus
+  str_c(outcome," ~ ", .) %>%    ## combine the names of variables of interest with outcome in formula style
+  glm(family = "binomial",                  ## define the family as binomial for logistic regression
+      data = a)                          ## define your dataset
+
+# Organize outputs into a table
+mv_eembi_log <- tbl_regression(m2,
+                               exponentiate = TRUE,
+                               pvalue_fun = ~ style_pvalue(.x, digits = 2)
+) %>%
+  bold_p() %>%
+  bold_labels()
+```
+
+Extract data from the regression tables and make the 
+```{r}
+## Univariate data ("unadjusted")
+uv <- uv_eembi_log$table_body %>% select(variable, var_type,  reference_row, row_type, N, 
+                                         label, n_obs, n_event, estimate, conf.low, 
+                                         conf.high, ci, p.value) %>% 
+  filter(row_type == "level") %>% 
+  mutate(estimate = round(estimate,2),
+         model = "Unadjusted",
+         new_variable = case_match(       # relabel to look nice for the plots
+           variable,
+           "wfh_exposure" ~ "Teleworking group",
+           "age_cat" ~ "Age group, years",
+           "sex_en" ~ "Sex",
+           "education_rec_en" ~ "Education",
+           "hh_income_cat_en" ~ "Household income",
+           "finance_situation" ~ "Financial security",
+           "percent_change_cat" ~ "Change in working hours",
+           "supervision_short" ~ "Management role",
+           "hh_livewith_rec_en" ~ "Living arrangement",
+           "overcrowded" ~ "Household density",
+           "noisy" ~ "Noise level at home",
+           "quiet_room" ~ "Access to a quiet room",         
+           "health_general_dich" ~ "Self-reported general health"
+         ),
+         new_label = case_when(         # Create a new label to take into account the reference lines
+           reference_row == TRUE ~ paste0(new_variable, " (ref: ", label, ")"),
+           .default = paste0("      ",label)
+         ),
+         is.summary = reference_row,
+         n_comb = paste0(n_obs, " (",n_event,")"),   # combine N and N event into a single variable
+         p.sig = case_when(                         # show p-values symbolically
+           reference_row ~ NA,
+           p.value < 0.001 ~ "***",
+           p.value < 0.01 ~ "**",
+           p.value <= 0.05 ~ "*",
+           .default = NA
+         ),
+         full_estimate_uv = case_when(            # combine OR, CI, and p-value symbol in one variable
+           reference_row == TRUE ~ NA,
+           is.na(p.sig) & reference_row == FALSE ~ paste0(round(estimate,2), " (", ci,")"),
+           reference_row == FALSE ~ paste0(round(estimate,2), " (", ci,")",p.sig),
+           ),
+         full_estimate_mv = NA                    # create empty mv variable to be filled later (vice versa for the mv table)
+         )
+
+# Multivariable regression data ("adjusted")
+mv <- mv_eembi_log$table_body %>% select(variable, var_type,  reference_row, row_type, N, 
+                                         label, n_obs, n_event, estimate, conf.low, 
+                                         conf.high, ci, p.value) %>% 
+  filter(row_type == "level")%>% 
+  mutate(estimate = round(estimate,2),
+         model = "Adjusted",
+         new_variable = case_match(
+           variable,
+           "wfh_exposure" ~ "Teleworking group",
+           "age_cat" ~ "Age group, years",
+           "sex_en" ~ "Sex",
+           "education_rec_en" ~ "Education",
+           "hh_income_cat_en" ~ "Household income",
+           "finance_situation" ~ "Financial security",
+           "percent_change_cat" ~ "Change in working hours",
+           "supervision_short" ~ "Management role",
+           "hh_livewith_rec_en" ~ "Living arrangement",
+           "overcrowded" ~ "Household density",
+           "noisy" ~ "Noise level at home",
+           "quiet_room" ~ "Access to a quiet room",         
+           "health_general_dich" ~ "Self-reported general health"
+         ),
+         new_label = case_when(
+           reference_row == TRUE ~ paste0(new_variable, " (ref: ", label, ")"),
+           .default = paste0("      ",label)
+         ),
+         is.summary = reference_row,
+         n_comb = paste0(n_obs, " (",n_event,")"),
+         p.sig = case_when(
+           reference_row ~ NA,
+           p.value < 0.001 ~ "***",
+           p.value < 0.01 ~ "**",
+           p.value <= 0.05 ~ "*",
+           .default = NA
+         ),
+         full_estimate_uv = NA,
+         full_estimate_mv = case_when(
+           reference_row == TRUE ~ NA,
+           is.na(p.sig) & reference_row == FALSE ~ paste0(round(estimate,2), " (", ci,")"),
+           reference_row == FALSE ~ paste0(round(estimate,2), " (", ci,")",p.sig),
+         )
+  )
+
+# fill in the empty rows for the two tables' full estimates (they need to be identical for the combined forest plot)
+uv <- uv %>% mutate(full_estimate_mv = mv$full_estimate_mv)
+mv <- mv %>% mutate(full_estimate_uv = uv$full_estimate_uv)
+
+## Make sure N are identical for the two groups, using uv N as the default
+## !! CAUTION !! Need to talk to Elsa and Nick, may need to report both N separately, or remove missing from all observations?
+mv_nstand <- mv %>% mutate(n_obs = uv$n_obs,
+                           n_event = uv$n_event,
+                           n_comb = uv$n_comb,
+                           )
+
+# Row bind the two tables 
+combi <- rbind(uv, mv_nstand)
+```
+
+<!-- # Individual plots -->
+<!-- ```{r} -->
+<!-- # Individual plots #### -->
+
+<!-- ## -->
+<!-- ### Univariable -->
+<!-- ## -->
+<!-- uvplot <- uv %>% -->
+<!--   forestplot(labeltext = c(new_label, n_comb, estimate, p.sig), -->
+<!--              clip = c(0.4, 6), -->
+<!--              xlog = TRUE, -->
+<!--              boxsize = .5, -->
+<!--              mean = estimate, -->
+<!--              lower = conf.low, -->
+<!--              upper = conf.high, -->
+<!--              xticks = c(log(0.5), log(1), log(2), log(4), log(6)), -->
+<!--              is.summary = reference_row -->
+<!--   ) %>% -->
+<!--   fp_set_style(box = "#8AAAE5", -->
+<!--                line = "#8AAAE5", -->
+<!--                txt_gp = fpTxtGp(summary = gpar(fontface = "bold", cex = 1)) -->
+<!--   )%>% -->
+<!--   fp_add_header(new_label = c("", ""), -->
+<!--                 n_comb = c("N (severe","EE-MBI)"), -->
+<!--                 estimate = c("Unadj.","OR"), -->
+<!--                 p.sig = c("", "") -->
+<!--                 ) %>% -->
+<!--   # fp_decorate_graph(box = TRUE)# %>% -->
+<!--   fp_set_zebra_style("#EFEFEF", ignore_subheaders = TRUE) ; uvplot -->
+
+<!-- ## -->
+<!-- ## Multivariable -->
+<!-- ## -->
+<!-- mvplot <- mv %>% -->
+<!--   forestplot(labeltext = c(estimate), -->
+<!--              clip = c(0.4, 6), -->
+<!--              xlog = TRUE, -->
+<!--              boxsize = .5, -->
+<!--              mean = estimate, -->
+<!--              lower = conf.low, -->
+<!--              upper = conf.high, -->
+<!--              xticks = c(log(0.5), log(1), log(2), log(4), log(6)), -->
+<!--              is.summary = reference_row, -->
+<!--              new_page = FALSE -->
+<!--   ) %>% -->
+<!--   fp_set_style(box = "#990011FF", -->
+<!--                line = "#990011FF", -->
+<!--                txt_gp = fpTxtGp(summary = gpar(fontface = "bold", cex = 1)) -->
+<!--   )%>% -->
+<!--   fp_add_header(estimate = c("Adj.","OR") -->
+<!--                 # ,new_label = c("", "") -->
+<!--                 ) %>% -->
+<!--   fp_decorate_graph(graph.pos = 1) %>% -->
+<!--   fp_set_zebra_style("#EFEFEF", ignore_subheaders = TRUE) ; mvplot -->
+
+<!-- ## Combine the two figures -->
+<!-- grid.newpage() -->
+<!-- pushViewport(viewport(layout = grid.layout(nrow = 1, ncol = 2, widths = c(2.3,1)))) -->
+<!-- pushViewport(viewport(layout.pos.col = 1)) -->
+<!-- plot(uvplot) -->
+<!-- popViewport() -->
+<!-- pushViewport(viewport(layout.pos.col = 2)) -->
+<!-- plot(mvplot) -->
+<!-- popViewport(2) -->
+<!-- ``` -->
+
+### Final forest plot
+```{r fig1, fig.width = 13, fig.height = 10, out.width = '100%'}
+## Final forest plot with both values in one figure ####
+combi %>% group_by(model) %>%
+  forestplot(labeltext = c(new_label, n_comb, full_estimate_uv, full_estimate_mv),
+             fn.ci_norm = c(fpDrawNormalCI, fpDrawCircleCI),  # Set shapes of the symbols
+             lty.ci = c(1, 2),                                  # Set the linetypes
+             clip = c(0.45, 6),                               # Cut off the x-axis
+             vertices = TRUE,
+             ci.vertices = TRUE,
+             ci.vertices.height = 0.1,
+             boxsize = .5,
+             line.margin = .1, # Add this to avoid crowding
+             xlog = TRUE,      # Show x-axis on log scale
+             mean = estimate,
+             lower = conf.low,
+             upper = conf.high,
+             # hrzl_lines = list("7" = gpar(lty = 1)),
+             is.summary = reference_row,
+             # title = "ff",
+             xlab = "OR (odds of severe EE-MBI relative to reference group)",
+             xticks = c(log(0.5), log(0.666), log(1), log(1.5), log(2), log(3), log(4), log(5), log(6)),
+             grid = structure(c(1), 
+                              gp=gpar(lty=1, lwd=1, col = "#999999")),
+             legend_args = fpLegend(
+               pos = list(x = .85, y = 0.967),
+                                    gp = gpar(col = "transparent", fill = "transparent"))
+  ) %>% 
+  fp_decorate_graph(graph.pos = 3) %>% 
+  # fp_add_lines(h_3 = gpar(lty = 2)) %>%
+  fp_set_style(box = c("#4271bd", "#990011FF"),
+               line = c("#4271bd", "#990011FF"),
+               txt_gp = fpTxtGp(summary = gpar(fontface = "bold", cex = 0.9),
+                                label = gpar(cex = 0.9),
+                                ticks = gpar(cex = 0.7),
+                                xlab = gpar(cex = 0.9)
+                                )
+               ) %>%
+  fp_add_lines("#999999") %>%
+  fp_add_header(new_label = c("", ""),
+                n_comb = c("N", "(severe MBI)") %>% fp_align_center(),
+                full_estimate_uv = c("Unadjusted", "OR (95% CI)") %>% fp_align_center(),
+                full_estimate_mv = c("Adjusted", "OR (95% CI)") %>% fp_align_center()
+                ) %>%
+  fp_set_zebra_style("#EFEFEF", ignore_subheaders = TRUE)
+```
+
