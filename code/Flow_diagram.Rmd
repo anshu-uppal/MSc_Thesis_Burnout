@@ -31,9 +31,9 @@ pacman::p_load(    # Installs / loads packages if they are not already installed
 )
 
 # Input flow diagram data from file previously generated using "Flow diagram.R"
-dat <- tibble(readRDS(here("data", "flow diagram.rds")))
+dat <- tibble(readRDS(here("data", "Generated datasets", "flow_diagram.rds")))
 # # Alternative is source it directly:
-# source(here::here("code", "Flow diagram.R"))
+# source(here::here("code", "Flow_diagram.R"))
 ```
 
 Remove suppressed (i.e. opted out)

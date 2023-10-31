@@ -7,7 +7,7 @@ pacman::p_load(    # Installs / loads packages if they are not already installed
 )
 
 # Read in merged dataset (see "Merge code.R" for how this was made)
-merged <- tibble(readRDS(here("data", "merged_dataset.rds")))
+merged <- tibble(readRDS(here("data", "Generated datasets", "merged_dataset.rds")))
 ### ### ### ### ### ### ### ### ### ###
 ### Dataset cleaning and wrangling ####
 ### ### ### ### ### ### ### ### ### ###
@@ -88,6 +88,36 @@ dat_all <- merged %>%
     job_sector = str_wrap(job_sector, width = 60),  # wrap sector so that it's better displayed
     job_sector = relevel(factor(job_sector), ref = "Administration publique"),
     
+    # Translate job sector
+    job_sector_en = factor(case_match(job_sector,
+                                      "Administration publique" ~ "Public administration"
+                                      ,"Activités juridiques, comptabilité, secrétariat" ~ "Legal, accounting, secretarial"
+                                      ,"Agriculture, sylviculture, horticulture, entretien des\nespaces verts, élevage, pêche, etc." ~ "Agriculture, forestry, livestock, fishing"
+                                      ,"Ambassade, organisation internationale" ~ "Embassy / international organisations"
+                                      ,"Arts, spectacle, musée, bibliothèque" ~ "Arts, museums, libraries"
+                                      ,"Banques, assurances" ~ "Banking, insurance"
+                                      ,"Bureaux d’études, recherche et développement, architecture"  ~ "Design, research and development, architecture"
+                                      ,"Commerce" ~ "Trade"
+                                      ,"Construction ou de la rénovation" ~ "Construction, renovation"
+                                      ,"Enseignement, recherche" ~ "Education, research"
+                                      ,"Extraction de matières premières" ~ "Extraction of raw materials"
+                                      ,"Hébergement et restauration" ~ "Accommodation and catering"
+                                      ,"Immobilier, agences" ~ "Real estate"
+                                      ,"Industrie, de la fabrication de biens" ~ "Industry, goods manufacturing"
+                                      ,"Information et communication" ~ "Information and communication"
+                                      ,"Other" ~ "Other"
+                                      ,"Petite enfance" ~ "Early childhood (care, education)"
+                                      ,"Production ou de la distribution" ~ "Production or distribution"
+                                      ,"Santé, social, médico-social" ~ "Healthcare and social services"
+                                      ,"Sécurité, secours" ~ "Security, rescue"
+                                      ,"Services à la personne" ~ "Personal services"
+                                      ,"Services de conseils" ~ "Consulting"
+                                      ,"Services domestiques" ~ "Domestic services"
+                                      ,"Transports et de l’entreposage" ~ "Transportation and storage"
+                                      ,.default = NA
+    )),
+    job_sector_en = fct_relevel(job_sector_en, c("Public administration", "Healthcare and social services"), after = 0),
+    
     # Relevel occupation label2
     Occupation_label_2 = relevel(factor(Occupation_label_2), ref = "Business and administration professionals"),
     
@@ -115,21 +145,23 @@ dat_all <- merged %>%
                                         levels = c("High", "Middle", "Low", "Don't want to answer")),
     
     # Recode Financial situation
-    finance_situation = factor(recode(finance_situation,
-                                      "Je suis à l’aise, l’argent n’est pas une source d’inquiétude et il m'est facile d’épargner" = "Comfortable",
-                                      "Mes revenus permettent de couvrir mes dépenses et de pallier d’éventuels imprévus mineurs" = "Can cover expenses",
-                                      "Je dois faire attention à mes dépenses et un imprévu pourrait me mettre en difficulté financière" = "Cautious / struggling",
-                                      "Je n’arrive pas à couvrir mes besoins avec mon revenu et j'ai besoin d’un soutien externe pour fonctionner (endettement, crédits, aides financières diverses)" = "Cautious / struggling",
-                                      "Je ne souhaite pas répondre" = "Don't want to answer"
+    finance_situation = factor(case_match(
+      finance_situation,
+      "Je suis à l’aise, l’argent n’est pas une source d’inquiétude et il m'est facile d’épargner" ~ "Comfortable",
+      "Mes revenus permettent de couvrir mes dépenses et de pallier d’éventuels imprévus mineurs" ~ "Can cover expenses",
+      "Je dois faire attention à mes dépenses et un imprévu pourrait me mettre en difficulté financière" ~ "Cautious / struggling",
+      "Je n’arrive pas à couvrir mes besoins avec mon revenu et j'ai besoin d’un soutien externe pour fonctionner (endettement, crédits, aides financières diverses)" ~ "Cautious / struggling",
+      "Je ne souhaite pas répondre" ~ "Don't want to answer"
                                       )
                                ),
     
     # Supervisory role
-    supervision_short = factor(recode(supervision,
-                                      "Oui, et c’est (c'était) ma tâche principale" = "Main duty",
-                                      "Oui, mais ce n’est (n'était) pas ma tâche principale" = "Some duties",
-                                      "Non" = "None"),
-                               levels = c("None", "Some duties", "Main duty")),
+    supervision_short = factor(case_match(
+      supervision,
+      "Oui, et c’est (c'était) ma tâche principale" ~ "Main duty",
+      "Oui, mais ce n’est (n'était) pas ma tâche principale" ~ "Some duties",
+      "Non" ~ "None"),
+      levels = c("None", "Some duties", "Main duty")),
     
     # Group 4+ people in a household into one category
     hh_composition = if_else(hh_livewith == "Seul-e", 0, hh_composition),
@@ -156,13 +188,14 @@ dat_all <- merged %>%
       levels = c("De manière inchangée", "Plus qu’avant", "Moins qu’avant", "Non concerné-e")),
     
     # recode wfh variable from French to English
-    wfh = factor(recode(wfh, 
-                        "Non, jamais" = "Never",
-                        "Non concerné-e (mon activité professionnelle n’est pas réalisable à distance)" = "Not possible",
-                        "Oui, parfois (mais pas régulièrement)" = "Occasionally (irregular)",
-                        "Oui, à temps partiel (au moins une fois par semaine)" = "1+ days/week",
-                        "Oui, à temps complet (tous les jours)" = "Every day"),
-                 levels = c("Never", "Not possible", "Occasionally (irregular)", "1+ days/week", "Every day")
+    wfh = factor(case_match(
+      wfh,
+      "Non, jamais" ~ "Never",
+      "Non concerné-e (mon activité professionnelle n’est pas réalisable à distance)" ~ "Not possible",
+      "Oui, parfois (mais pas régulièrement)" ~ "Occasionally (irregular)",
+      "Oui, à temps partiel (au moins une fois par semaine)" ~ "1+ days/week",
+      "Oui, à temps complet (tous les jours)" ~ "Every day"),
+      levels = c("Never", "Not possible", "Occasionally (irregular)", "1+ days/week", "Every day")
     ),
     
     # # Update wfh "Never" status using the ISCO-08 definitions to account for "teleworkability" of profession
@@ -192,31 +225,32 @@ dat_all <- merged %>%
     #                      levels = c("Never", "Not possible", "Occasionally (irregular)", "1+ days/week", "Every day")),
 
     # Re-categorise wfh_updated 
-    wfh_cat = factor(recode(wfh_updated, 
-                     "Never" = "Never",
-                     "Not possible" = "Not possible",
-                     "Occasionally (irregular)" = "Occasionally",
-                     "1+ days/week" = "Occasionally",
-                     "Every day" = "Always"),
-                     levels = c("Never", "Not possible", "Occasionally", "Always"))
+    wfh_cat = factor(case_match(
+      wfh_updated, 
+      "Never" ~ "Never",
+      "Not possible" ~ "Not possible",
+      "Occasionally (irregular)" ~ "Occasionally",
+      "1+ days/week" ~ "Occasionally",
+      "Every day" ~ "Always"),
+      levels = c("Never", "Not possible", "Occasionally", "Always"))
     ,
     
     # Dichotomise wfh_updated
-    wfh_dich = factor(recode(wfh_updated, 
-                              "Never" = "No",
-                              "Not possible" = "No",
-                              "Occasionally (irregular)" = "Yes",
-                              "1+ days/week" = "Yes",
-                              "Every day" = "Yes"),
+    wfh_dich = factor(case_match(wfh_updated, 
+                              "Never" ~ "No",
+                              "Not possible" ~ "No",
+                              "Occasionally (irregular)" ~ "Yes",
+                              "1+ days/week" ~ "Yes",
+                              "Every day" ~ "Yes"),
                        levels = c("Yes", "No")
     ),
     # "Trichotomise" wfh_updated
-    wfh_trich = factor(recode(wfh_updated, 
-                              "Never" = "Never",
-                              "Not possible" = "Not possible",
-                              "Occasionally (irregular)" = "Yes",
-                              "1+ days/week" = "Yes",
-                              "Every day" = "Yes"),
+    wfh_trich = factor(case_match(wfh_updated, 
+                              "Never" ~ "Never",
+                              "Not possible" ~ "Not possible",
+                              "Occasionally (irregular)" ~ "Yes",
+                              "1+ days/week" ~ "Yes",
+                              "Every day" ~ "Yes"),
                       levels = c("Never", "Not possible", "Yes")
     ),
     
@@ -251,17 +285,17 @@ dat_all <- merged %>%
       )),
     
     # Relevel and dichotomise the "Feeling exhausted at work" question
-    feeling_exhausted = factor(recode(feeling_exhausted,
-                                      "Oui" = "Yes",
-                                      "Plutôt oui" = "Rather yes",
-                                      "Plutôt non" = "Rather no",
-                                      "Non" = "No"),
+    feeling_exhausted = factor(case_match(feeling_exhausted,
+                                      "Oui" ~ "Yes",
+                                      "Plutôt oui" ~ "Rather yes",
+                                      "Plutôt non" ~ "Rather no",
+                                      "Non" ~ "No"),
                                levels = c("No", "Rather no", "Rather yes", "Yes")),
-    feeling_exhausted_dich = factor(recode(feeling_exhausted,     
-                                    "Yes" = "Yes",
-                                    "Rather yes" = "Yes",
-                                    "Rather no" = "No",
-                                    "No" = "No"),
+    feeling_exhausted_dich = factor(case_match(feeling_exhausted,     
+                                    "Yes" ~ "Yes",
+                                    "Rather yes" ~ "Yes",
+                                    "Rather no" ~ "No",
+                                    "No" ~ "No"),
                                     levels = c("No", "Yes")),
     
     # Convert clinical burnout from Yes/No to 1/0
@@ -273,10 +307,10 @@ dat_all <- merged %>%
     # Include a square root transformation of the continuous burnout_score
     burnout_score_sqrt1 = sqrt(burnout_score+1),
     # recode EE MBI interpreation into English
-     burnout_interp = recode(burnout_interp,                     
-                            "Épuisement modéré" = "Moderate",
-                            "Épuisement faible" = "Mild",
-                            "Épuisement fort" = "Severe"
+     burnout_interp = case_match(burnout_interp,                     
+                            "Épuisement modéré" ~ "Moderate",
+                            "Épuisement faible" ~ "Mild",
+                            "Épuisement fort" ~ "Severe"
     ),
     
     # Create dichotomised MBI with score >= 27 as severe
@@ -295,22 +329,22 @@ dat_all <- merged %>%
     ),
     
     ## Relationship status recode into English
-    relation = recode(relation,
-                      "En couple, non marié-e" = "In relationship (unmarried)",
-                      "Marié-e ou en partenariat enregistré" = "Married / civil partnership",
-                      "Divorcé-e ou séparé-e" = "Divorced / separated",
-                      "Célibataire" = "Single",
-                      "Veuf-ve" = "Widowed",
-                      "Other" = "Other"
+    relation = case_match(relation,
+                      "En couple, non marié-e" ~ "In relationship (unmarried)",
+                      "Marié-e ou en partenariat enregistré" ~ "Married / civil partnership",
+                      "Divorcé-e ou séparé-e" ~ "Divorced / separated",
+                      "Célibataire" ~ "Single",
+                      "Veuf-ve" ~ "Widowed",
+                      "Other" ~ "Other"
     ),
     
     ## Living situation --> not considering age of children
-    hh_livewith_rec_en = factor(recode(hh_livewith,
-                                "En couple, sans enfant" = "Couple without children",
-                                "En cohabitation, avec d'autres personnes (famille, amis, collocataires, etc.)" = "With other adults",
-                                "Seul-e" = "Alone",
-                                "En couple, avec vos enfants ou ceux de votre conjoint-e" = "Couple with children",
-                                "En parent seul, avec vos enfants" = "Single with children"),
+    hh_livewith_rec_en = factor(case_match(hh_livewith,
+                                "En couple, sans enfant" ~ "Couple without children",
+                                "En cohabitation, avec d'autres personnes (famille, amis, collocataires, etc.)" ~ "With other adults",
+                                "Seul-e" ~ "Alone",
+                                "En couple, avec vos enfants ou ceux de votre conjoint-e" ~ "Couple with children",
+                                "En parent seul, avec vos enfants" ~ "Single with children"),
                                 levels = c("Couple without children", "Couple with children", 
                                            "Single with children", "With other adults", "Alone")
     ),
@@ -325,9 +359,9 @@ dat_all <- merged %>%
                  "Single with young children", "Single with children aged over 5", "With other adults", "Alone")),
     
     # Housing condition has similar responses from previous surveys that need to be combined
-    housing_condition = recode(housing_condition,
-                               "Appartement avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)" = "Appartement ou studio avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)",
-                               "Appartement sans accès à l’extérieur" = "Appartement ou studio sans accès à l’extérieur"
+    housing_condition = case_match(housing_condition,
+                               "Appartement avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)" ~ "Appartement ou studio avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)",
+                               "Appartement sans accès à l’extérieur" ~ "Appartement ou studio sans accès à l’extérieur"
     ),
     
     # Health_general --> dichotomise
@@ -350,11 +384,11 @@ dat_all <- merged %>%
                                      ),
     
     # Recode sedentary_work into English
-    sedentary_work = recode(sedentary_work,
-                            "Principalement sédentaire (ex : vous travaillez principalement sur ordinateur / écran, travail de bureau ou administratif)" = "Mainly sedentary",
-                            "Principalement avec un effort physique (ex : votre travail implique d’être très souvent physiquement actif, en mouvement)" = "Mainly physical",
-                            "Sédentaire et actif à la fois" = "Mix of sedentary and physical activity",
-                            "Other" = "Other"
+    sedentary_work = case_match(sedentary_work,
+                            "Principalement sédentaire (ex : vous travaillez principalement sur ordinateur / écran, travail de bureau ou administratif)" ~ "Mainly sedentary",
+                            "Principalement avec un effort physique (ex : votre travail implique d’être très souvent physiquement actif, en mouvement)" ~ "Mainly physical",
+                            "Sédentaire et actif à la fois" ~ "Mix of sedentary and physical activity",
+                            "Other" ~ "Other"
                             ),
     
     # Dichotomize ethnicity to White European / Other
@@ -380,12 +414,12 @@ dat_all <- merged %>%
                                   ),
     
     # Years of service
-    years_of_service_en = factor(recode(years_of_service,
-                                 "Moins de 6 mois" = "Less than 6 months",
-                                 "De 6 mois à 1 an" = "6-12 months",
-                                 "De plus d’1 an à 5 ans" = "1-5 years",
-                                 "De plus de 5 ans à 10 ans" = "5-10 years",
-                                 "Plus de 10 ans" = "Over 10 years"),
+    years_of_service_en = factor(case_match(years_of_service,
+                                 "Moins de 6 mois" ~ "Less than 6 months",
+                                 "De 6 mois à 1 an" ~ "6-12 months",
+                                 "De plus d’1 an à 5 ans" ~ "1-5 years",
+                                 "De plus de 5 ans à 10 ans" ~ "5-10 years",
+                                 "Plus de 10 ans" ~ "Over 10 years"),
                                  levels = c("Over 10 years", "5-10 years", "1-5 years", "6-12 months", "Less than 6 months")
                                  ),
     
@@ -416,12 +450,12 @@ dat_all <- merged %>%
     overwork_ratio = hours_week / (readr::parse_number(as.character(percentage))*0.4),
     
     # Work interruptions
-    work_interruption = factor(recode(work_interruption,
-                                      "Non" = "No",
-                                      "Oui, moins d’un mois en tout" = "Less than 1 month",
-                                      "Oui, de 1 à moins de 3 mois en tout" = "Between 1-3 months",
-                                      "Oui, de 3 à moins de 6 mois en tout" = "Between 3-6 months", 
-                                      "Oui, 6 mois ou plus" = "6+ months"),
+    work_interruption = factor(case_match(work_interruption,
+                                      "Non" ~ "No",
+                                      "Oui, moins d’un mois en tout" ~ "Less than 1 month",
+                                      "Oui, de 1 à moins de 3 mois en tout" ~ "Between 1-3 months",
+                                      "Oui, de 3 à moins de 6 mois en tout" ~ "Between 3-6 months", 
+                                      "Oui, 6 mois ou plus" ~ "6+ months"),
                                       levels = c("No", "Less than 1 month", "Between 1-3 months", "Between 3-6 months",  "6+ months")
                                ),
     work_interruption_dich = case_match(work_interruption,
@@ -629,5 +663,7 @@ dat <- dat_all %>%
 
 
 ## Save the two datasets separately
-saveRDS(dat_all, here("data", "clean_dataset_incl_salariee.rds")) # Save the dataset that includes non-salaried people
-saveRDS(dat, here("data", "clean_dataset.rds")) # Save the cleaned dataset that excludes non-salaried people
+saveRDS(dat_all, here("data", "Generated datasets", "clean_dataset_incl_salariee.rds")) # Save the dataset that includes non-salaried people
+saveRDS(dat, here("data", "Generated datasets", "clean_dataset.rds")) # Save the cleaned dataset that excludes non-salaried people
+
+rm(list = ls())

@@ -14,7 +14,7 @@ pacman::p_load(
 # Section that needs your input -------------------------------------------
 
 # update dat to use your dataset
-dat <- tibble(readRDS(here("data", "clean_dataset.rds")))
+dat <- tibble(readRDS(here("data", "Generated datasets", "clean_dataset.rds")))
 
 # dat <- dat %>% mutate(wfh_exposure = relevel(wfh_exposure, ref = "Never")) # compare never to not possible
 
@@ -61,8 +61,8 @@ covariates <- c(
   "health_general_dich",
   "hh_income_cat_en",
   "finance_situation",
-  "pandemic_change",
-  # "percent_change_cat",
+  # "pandemic_change",
+  "percent_change_cat",
   "supervision_short" # which variable to use for financial security? or too linked with income?
   # , "karasek_social_support_cat"
   # , "Occupation_label_2"
@@ -86,8 +86,8 @@ clean_name <- c(
   , "Self-reported general health"
   , "Household income"
   , "Financial security"
-  , "Pandemic-related work changes"
-  # , "Change in contracted hours"
+  # , "Pandemic-related work changes"
+  , "Change in contracted hours"
   , "Management role"
   # , "Social support"
   # , "ISCO Occupation label"
@@ -388,7 +388,9 @@ p2 <- plot_outcomes[[2]]
 p3 <- plot_outcomes[[3]]
 
 # Print the plot ####
-emf(file = here("output", "publication figures", "Main regression figure_TW_pandemic changes.emf"),width = 9, height = 7, bg = "white")  # full is width = 15.5, height = 8.5
+emf(file = here("output", "publication figures", 
+                paste0(format(Sys.time(), "%Y-%m-%d-%H%M_"),"Main regression figure_TW.emf")),
+    width = 9, height = 7, bg = "white")  # full is width = 15.5, height = 8.5
 ## Combine the three figures
 grid.newpage()
 pushViewport(viewport(layout = grid.layout(nrow = 3, ncol = 1, heights = 2)))

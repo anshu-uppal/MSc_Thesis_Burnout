@@ -13,7 +13,7 @@ pacman::p_load(    # Installs / loads packages if they are not already installed
   forcats
 )
 
-dat <- tibble(readRDS(here("data", "clean_dataset.rds"))) %>%
+dat <- tibble(readRDS(here("data", "Generated datasets", "clean_dataset.rds"))) %>%
   mutate(age_cat2 = factor(case_when(     
            age >= 25 & age < 45 ~ "25-44",
            age >= 45 & age < 65 ~ "45-64")),

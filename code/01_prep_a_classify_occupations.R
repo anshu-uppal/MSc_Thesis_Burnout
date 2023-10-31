@@ -8,12 +8,12 @@ pacman::p_load(    # Installs / loads packages if they are not already installed
 )
 
 # Read in the all participants dataset from local file
-inclusion <- tibble(readRDS(here("data","2023-01-03-1808_ALLincs_ALLparticipants.rds")))
+inclusion <- tibble(readRDS(here("data", "Initial datasets", "2023-01-03-1808_ALLincs_ALLparticipants.rds")))
 # Alternative read-in from source
 # inclusion <- tibble(readRDS("P:/ODS/DMCPRU/UEPDATA/Specchio-COVID19/99_data/Bases_for_sharing/2023-01-03-1808_ALLincs_ALLparticipants.rds"))
 
 # Read in the Santé-travail dataset from local file
-work <- tibble(readRDS(here("data","2023-02-02-1137_SanteTravail_ALLparticipants.rds")))
+work <- tibble(readRDS(here("data", "Initial datasets", "2023-02-02-1137_SanteTravail_ALLparticipants.rds")))
 # Alternative read-in from source
 # work <- tibble(readRDS("P:/ODS/DMCPRU/UEPDATA/Specchio-COVID19/99_data/Bases_for_sharing/2023-02-02-1137_SanteTravail_ALLparticipants.rds"))
 
@@ -40,7 +40,7 @@ merged_data <- full_join(inclusion, work, by = "participant_id") %>%
          , !wfh_change %in% c("Non concerné-e (vous n’aviez pas d’emploi avant la pandémie ou vous avez changé d’emploi)")
   )
 
-occ_labels <- readxl::read_xlsx(here("data","do-e-00-isco08-01.xlsx"), # read in occupation titles based on ISCO code
+occ_labels <- readxl::read_xlsx(here("data", "Initial datasets", "do-e-00-isco08-01.xlsx"), # read in occupation titles based on ISCO code
                                 sheet = "ISCO-08 English version") %>% drop_na() %>% mutate(ISCO = as.numeric(ISCO)) %>% 
   filter(!str_detect(Occupation_label, "armed forces|Armed forces")) # Remove armed services as their numbers cause weirdness and we don't have them in our dataset
 
@@ -560,13 +560,13 @@ occup_ISCO <- occup %>%
 occup_ISCO_final <- occup_ISCO %>% select(participant_id, ISCO)
 
 # # Read teleworkability indices from locally saved file
-indices <- read_csv(here("data", "Telework ISCO indices.txt")) %>%     # read in the teleworkability indices (low "physical_interaction" = low teleworkability)
+indices <- read_csv(here("data", "Initial datasets", "Telework ISCO indices.txt")) %>%     # read in the teleworkability indices (low "physical_interaction" = low teleworkability)
   janitor::clean_names() %>% select(!occupation_title) %>% mutate(isco_3 = isco08) %>% select(-isco08)
 # Read teleworkability indices from original source
 # indices <- read_csv("https://raw.githubusercontent.com/m-sostero/telework-occupations/master/Telework%20ISCO%20indices.csv") %>%     # read in directly from source GitHub page
 #   janitor::clean_names() %>% select(!occupation_title) %>% mutate(isco_3 = isco08) %>% select(-isco08)
 # Read in ISCO code occupation labels
-indices_2 <- read_xlsx(here("data", "EWCS 3 digit.xlsx")) %>% mutate(isco_3 = as.numeric(isco3d)) %>% select(isco_3,telework, physicalb)
+indices_2 <- read_xlsx(here("data", "Initial datasets", "EWCS 3 digit.xlsx")) %>% mutate(isco_3 = as.numeric(isco3d)) %>% select(isco_3,telework, physicalb)
 # Merge the indices with the ISCO labels
 indices <- left_join(indices, indices_2)
 
@@ -588,5 +588,5 @@ occup_ISCO_final <- left_join(occup_ISCO_final, occ_labels, by = c("isco_2" = "I
 occup_ISCO_final <- left_join(occup_ISCO_final, occ_labels, by = c("isco_1" = "ISCO")) %>% rename(Occupation_label_1 = Occupation_label)
 
 # # Save the final dataset
-saveRDS(occup_ISCO_final, here("data", "Classified occupations.RDS"), ascii = TRUE)
+saveRDS(occup_ISCO_final, here("data","Generated datasets", "Classified_occupations.RDS"), ascii = TRUE)
 

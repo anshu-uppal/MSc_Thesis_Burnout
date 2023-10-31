@@ -7,8 +7,8 @@ pacman::p_load(    # Installs / loads packages if they are not already installed
   lubridate     # manipulate date objects
 )
 
-sante_travail_nov2022 = tibble(read_delim(here("data", "Q_sante_travail_21022023.csv"), delim = ";"))
-sante_travail_nov2022_kids_parents = tibble(read_delim(here("data", "Q_sante_travail_21022023_refparents_SEROCOVKIDS.csv"), delim = ";"))
+sante_travail_nov2022 = tibble(read_delim(here("data", "Initial datasets", "Q_sante_travail_21022023.csv"), delim = ";"))
+sante_travail_nov2022_kids_parents = tibble(read_delim(here("data", "Initial datasets", "Q_sante_travail_21022023_refparents_SEROCOVKIDS.csv"), delim = ";"))
 combined <- bind_rows(sante_travail_nov2022, sante_travail_nov2022_kids_parents) %>% 
   janitor::clean_names() %>%
   # filter(send_status == "Sent") %>%
@@ -17,14 +17,14 @@ combined <- bind_rows(sante_travail_nov2022, sante_travail_nov2022_kids_parents)
 
 
 # Merge with inclusion questionnaire to get demographic information
-inclusion <- tibble(readRDS(here("data","2023-01-03-1808_ALLincs_ALLparticipants.rds"))) %>% 
+inclusion <- tibble(readRDS(here("data","Initial datasets","2023-01-03-1808_ALLincs_ALLparticipants.rds"))) %>% 
 # inclusion <- tibble(readRDS("P:/ODS/DMCPRU/UEPDATA/Specchio-COVID19/99_data/Base_de_données/Bases_for_sharing/2023-01-03-1808_ALLincs_ALLparticipants.rds")) %>% 
   filter(testeur == FALSE) %>%
   filter(!str_starts(codbar, "T"))
 merged <- left_join(inclusion, combined, by = "participant_id")
 
 # Merge with sante-travail dataset just to see whether they responded
-work <- tibble(readRDS(here("data","2023-02-02-1137_SanteTravail_ALLparticipants.rds")))
+work <- tibble(readRDS(here("data","Initial datasets","2023-02-02-1137_SanteTravail_ALLparticipants.rds")))
 # work <- tibble(readRDS("P:/ODS/DMCPRU/UEPDATA/Specchio-COVID19/99_data/Base_de_données/Bases_for_sharing/2023-02-02-1137_SanteTravail_ALLparticipants.rds"))
 merged <- left_join(merged, work, by = "participant_id")
 merged <- merged %>% mutate(Invited = case_when(send_status == "Sent" ~ "Invited",
@@ -143,20 +143,20 @@ merged_fin <- merged %>%
                               levels = c("High", "Middle", "Low", "No answer")),
     
     # Recode Financial situation
-    finance_situation = factor(recode(finance_situation,
-                                      "Je suis à l’aise, l’argent n’est pas une source d’inquiétude et il m'est facile d’épargner" = "Financially comfortable",
-                                      "Mes revenus permettent de couvrir mes dépenses et de pallier d’éventuels imprévus mineurs" = "Can cover expenses",
-                                      "Je dois faire attention à mes dépenses et un imprévu pourrait me mettre en difficulté financière" = "Financially cautious / struggling",
-                                      "Je n’arrive pas à couvrir mes besoins avec mon revenu et j'ai besoin d’un soutien externe pour fonctionner (endettement, crédits, aides financières diverses)" = "Financially cautious / struggling",
-                                      "Je ne souhaite pas répondre" = "Don't want to answer"
+    finance_situation = factor(case_match(finance_situation,
+                                      "Je suis à l’aise, l’argent n’est pas une source d’inquiétude et il m'est facile d’épargner" ~ "Financially comfortable",
+                                      "Mes revenus permettent de couvrir mes dépenses et de pallier d’éventuels imprévus mineurs" ~ "Can cover expenses",
+                                      "Je dois faire attention à mes dépenses et un imprévu pourrait me mettre en difficulté financière" ~ "Financially cautious / struggling",
+                                      "Je n’arrive pas à couvrir mes besoins avec mon revenu et j'ai besoin d’un soutien externe pour fonctionner (endettement, crédits, aides financières diverses)" ~ "Financially cautious / struggling",
+                                      "Je ne souhaite pas répondre" ~ "Don't want to answer"
     )
     ),
     
     # Supervisory role
-    supervision_short = factor(recode(supervision,
-                                      "Oui, et c’est (c'était) ma tâche principale" = "Management (main duty)",
-                                      "Oui, mais ce n’est (n'était) pas ma tâche principale" = "Some management duties",
-                                      "Non" = "No management duties"),
+    supervision_short = factor(case_match(supervision,
+                                      "Oui, et c’est (c'était) ma tâche principale" ~ "Management (main duty)",
+                                      "Oui, mais ce n’est (n'était) pas ma tâche principale" ~ "Some management duties",
+                                      "Non" ~ "No management duties"),
                                levels = c("No management duties", "Some management duties", "Management (main duty)")),
     
     # Group 4+ people in a household into one category
@@ -177,17 +177,17 @@ merged_fin <- merged %>%
     ),
     
     # Relevel and dichotomise the "Feeling exhausted at work" question
-    feeling_exhausted = factor(recode(feeling_exhausted,
-                                      "Oui" = "Yes",
-                                      "Plutôt oui" = "Rather yes",
-                                      "Plutôt non" = "Rather no",
-                                      "Non" = "No"),
+    feeling_exhausted = factor(case_match(feeling_exhausted,
+                                      "Oui" ~ "Yes",
+                                      "Plutôt oui" ~ "Rather yes",
+                                      "Plutôt non" ~ "Rather no",
+                                      "Non" ~ "No"),
                                levels = c("No", "Rather no", "Rather yes", "Yes")),
-    feeling_exhausted_dich = factor(recode(feeling_exhausted,     
-                                           "Yes" = "Yes",
-                                           "Rather yes" = "Yes",
-                                           "Rather no" = "No",
-                                           "No" = "No"),
+    feeling_exhausted_dich = factor(case_match(feeling_exhausted,     
+                                           "Yes" ~ "Yes",
+                                           "Rather yes" ~ "Yes",
+                                           "Rather no" ~ "No",
+                                           "No" ~ "No"),
                                     levels = c("No", "Yes")),
     
     # Convert clinical burnout from Yes/No to 1/0
@@ -199,10 +199,10 @@ merged_fin <- merged %>%
     # Include a square root transformation of the continuous burnout_score
     burnout_score_sqrt1 = sqrt(burnout_score+1),
     # recode EE MBI interpreation into English
-    burnout_interp = recode(burnout_interp,                     
-                            "Épuisement modéré" = "Moderate",
-                            "Épuisement faible" = "Mild",
-                            "Épuisement fort" = "Severe"
+    burnout_interp = case_match(burnout_interp,                     
+                            "Épuisement modéré" ~ "Moderate",
+                            "Épuisement faible" ~ "Mild",
+                            "Épuisement fort" ~ "Severe"
     ),
     
     # Create dichotomised MBI with score >= 27 as severe
@@ -221,22 +221,22 @@ merged_fin <- merged %>%
     ),
     
     ## Relationship status recode into English
-    relation = recode(relation,
-                      "En couple, non marié-e" = "In relationship (unmarried)",
-                      "Marié-e ou en partenariat enregistré" = "Married / civil partnership",
-                      "Divorcé-e ou séparé-e" = "Divorced / separated",
-                      "Célibataire" = "Single",
-                      "Veuf-ve" = "Widowed",
-                      "Other" = "Other"
+    relation = case_match(relation,
+                      "En couple, non marié-e" ~ "In relationship (unmarried)",
+                      "Marié-e ou en partenariat enregistré" ~ "Married / civil partnership",
+                      "Divorcé-e ou séparé-e" ~ "Divorced / separated",
+                      "Célibataire" ~ "Single",
+                      "Veuf-ve" ~ "Widowed",
+                      "Other" ~ "Other"
     ),
     
     ## Living situation --> not considering age of children
-    hh_livewith_rec_en = factor(recode(hh_livewith,
-                                       "En couple, sans enfant" = "Couple without children",
-                                       "En cohabitation, avec d'autres personnes (famille, amis, collocataires, etc.)" = "With other adults",
-                                       "Seul-e" = "Alone",
-                                       "En couple, avec vos enfants ou ceux de votre conjoint-e" = "Couple with children",
-                                       "En parent seul, avec vos enfants" = "Single with children"),
+    hh_livewith_rec_en = factor(case_match(hh_livewith,
+                                       "En couple, sans enfant" ~ "Couple without children",
+                                       "En cohabitation, avec d'autres personnes (famille, amis, collocataires, etc.)" ~ "With other adults",
+                                       "Seul-e" ~ "Alone",
+                                       "En couple, avec vos enfants ou ceux de votre conjoint-e" ~ "Couple with children",
+                                       "En parent seul, avec vos enfants" ~ "Single with children"),
                                 levels = c("Couple without children", "Couple with children", 
                                            "Single with children", "With other adults", "Alone")
     ),
@@ -251,9 +251,11 @@ merged_fin <- merged %>%
                  "Single with young children", "Single with children aged over 5", "With other adults", "Alone")),
     
     # Housing condition has similar responses from previous surveys that need to be combined
-    housing_condition = recode(housing_condition,
-                               "Appartement avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)" = "Appartement ou studio avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)",
-                               "Appartement sans accès à l’extérieur" = "Appartement ou studio sans accès à l’extérieur"
+    housing_condition = case_match(
+      housing_condition,
+      "Appartement avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)" ~ "Appartement ou studio avec un accès à l’extérieur (balcon, terrasse, cour ou jardin)",
+      "Appartement sans accès à l’extérieur" ~ "Appartement ou studio sans accès à l’extérieur",
+      .default = housing_condition
     ),
     
     # Health_general --> dichotomise
@@ -269,18 +271,19 @@ merged_fin <- merged %>%
     ),
     
     # Dichotomise workplace size
-    workplace_size_dich = case_match(workplace_size,
-                                     c("Moins de 5 salarié-es", "De 5 à 9 salarié-es", "De 10 salarié-es à 49 salarié-es", 
-                                       "De 50 salarié-es à 99 salarié-es", "De 100 salarié-es à 499 salarié-es") ~ "Under 500 employees",
-                                     c("500 salarié-es à 999 salarié-es", "1000 et plus") ~ "Over 500 employees"
+    workplace_size_dich = case_match(
+      workplace_size,
+      c("Moins de 5 salarié-es", "De 5 à 9 salarié-es", "De 10 salarié-es à 49 salarié-es",
+        "De 50 salarié-es à 99 salarié-es", "De 100 salarié-es à 499 salarié-es") ~ "Under 500 employees",
+      c("500 salarié-es à 999 salarié-es", "1000 et plus") ~ "Over 500 employees"
     ),
     
     # Recode sedentary_work into English
-    sedentary_work = recode(sedentary_work,
-                            "Principalement sédentaire (ex : vous travaillez principalement sur ordinateur / écran, travail de bureau ou administratif)" = "Mainly sedentary",
-                            "Principalement avec un effort physique (ex : votre travail implique d’être très souvent physiquement actif, en mouvement)" = "Mainly physical",
-                            "Sédentaire et actif à la fois" = "Mix of sedentary and physical activity",
-                            "Other" = "Other"
+    sedentary_work = case_match(sedentary_work,
+                            "Principalement sédentaire (ex : vous travaillez principalement sur ordinateur / écran, travail de bureau ou administratif)" ~ "Mainly sedentary",
+                            "Principalement avec un effort physique (ex : votre travail implique d’être très souvent physiquement actif, en mouvement)" ~ "Mainly physical",
+                            "Sédentaire et actif à la fois" ~ "Mix of sedentary and physical activity",
+                            "Other" ~ "Other"
     ),
     
     # Dichotomize ethnicity to White European / Other
@@ -305,12 +308,12 @@ merged_fin <- merged %>%
     ),
     
     # Years of service
-    years_of_service_en = factor(recode(years_of_service,
-                                        "Moins de 6 mois" = "Less than 6 months",
-                                        "De 6 mois à 1 an" = "6-12 months",
-                                        "De plus d’1 an à 5 ans" = "1-5 years",
-                                        "De plus de 5 ans à 10 ans" = "5-10 years",
-                                        "Plus de 10 ans" = "Over 10 years"),
+    years_of_service_en = factor(case_match(years_of_service,
+                                        "Moins de 6 mois" ~ "Less than 6 months",
+                                        "De 6 mois à 1 an" ~ "6-12 months",
+                                        "De plus d’1 an à 5 ans" ~ "1-5 years",
+                                        "De plus de 5 ans à 10 ans" ~ "5-10 years",
+                                        "Plus de 10 ans" ~ "Over 10 years"),
                                  levels = c("Over 10 years", "5-10 years", "1-5 years", "6-12 months", "Less than 6 months")
     ),
     
@@ -341,12 +344,12 @@ merged_fin <- merged %>%
     overwork_ratio = hours_week / (readr::parse_number(as.character(percentage))*0.4),
     
     # Work interruptions
-    work_interruption = factor(recode(work_interruption,
-                                      "Non" = "No",
-                                      "Oui, moins d’un mois en tout" = "Less than 1 month",
-                                      "Oui, de 1 à moins de 3 mois en tout" = "Between 1-3 months",
-                                      "Oui, de 3 à moins de 6 mois en tout" = "Between 3-6 months", 
-                                      "Oui, 6 mois ou plus" = "6+ months"),
+    work_interruption = factor(case_match(work_interruption,
+                                      "Non" ~ "No",
+                                      "Oui, moins d’un mois en tout" ~ "Less than 1 month",
+                                      "Oui, de 1 à moins de 3 mois en tout" ~ "Between 1-3 months",
+                                      "Oui, de 3 à moins de 6 mois en tout" ~ "Between 3-6 months", 
+                                      "Oui, 6 mois ou plus" ~ "6+ months"),
                                levels = c("No", "Less than 1 month", "Between 1-3 months", "Between 3-6 months",  "6+ months")
     ),
     work_interruption_dich = case_match(work_interruption,
@@ -481,7 +484,7 @@ merged_fin <- merged %>%
     # dgs_binary_victim_aggression
   )
 
-saveRDS(merged_fin, here("data", "flow diagram.rds")) # Save the flow diagram dataset
+saveRDS(merged_fin, here("data", "Generated datasets", "flow_diagram.rds")) # Save the flow diagram dataset
 # Rename variable as data in case we source this file in the "Flow_diagram.Rmd file
 dat <- merged_fin
 # And also remove the previously generated variables
